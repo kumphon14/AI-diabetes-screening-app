@@ -130,36 +130,36 @@ class RecommendationEngine:
         # Blood glucose
         if glucose_test_type == "fasting":
             if glucose >= 126:
-                factors.append("Fasting glucose in diabetes-range threshold")
+                factors.append("High fasting blood sugar")
             elif glucose >= 100:
-                factors.append("Fasting glucose in prediabetes range")
+                factors.append("Fasting blood sugar above the normal range")
         else:
             if glucose >= 200:
-                factors.append("Very high random blood glucose")
+                factors.append("Very high blood sugar")
             elif glucose >= 140:
-                factors.append("Elevated random blood glucose")
+                factors.append("Higher-than-normal blood sugar")
 
         # BMI
         if bmi >= 30:
-            factors.append("Obesity-level BMI")
+            factors.append("Body weight in the obesity range")
         elif bmi >= 25:
-            factors.append("High BMI")
+            factors.append("Body weight above the healthy range")
 
         # Hypertension / BP
         if int(data["hypertension"]) == 1:
-            factors.append("Hypertension history")
+            factors.append("History of high blood pressure")
         elif sbp >= 140 or dbp >= 90:
-            factors.append("Elevated blood pressure")
+            factors.append("High blood pressure reading")
 
         # Waist circumference
         if self._is_high_waist(data["gender"], waist):
-            factors.append("High waist circumference")
+            factors.append("High waist measurement")
 
         # Age
         if age >= 60:
-            factors.append("Older age group")
+            factors.append("Age 60 or above")
         elif age >= 45:
-            factors.append("Age 45 years or older")
+            factors.append("Age 45 or above")
 
         # Heart disease
         if int(data["heart_disease"]) == 1:
@@ -171,11 +171,11 @@ class RecommendationEngine:
 
         # Smoking
         if str(data["smoking_history"]).lower() in {"current", "ever", "former"}:
-            factors.append("Smoking-related risk")
+            factors.append("Smoking history")
 
         # Physical activity
         if str(data["physical_activity_level"]).lower() == "low":
-            factors.append("Low physical activity level")
+            factors.append("Low physical activity")
 
         return self._deduplicate(factors)
 
@@ -193,30 +193,30 @@ class RecommendationEngine:
         # Glucose
         if glucose_test_type == "fasting":
             if glucose >= 126:
-                flags.append("Fasting blood glucose is in the diabetes-range threshold (>=126 mg/dL).")
+                flags.append("Your fasting blood sugar is in a high range.")
             elif glucose >= 100:
-                flags.append("Fasting blood glucose is in the prediabetes range (100-125 mg/dL).")
+                flags.append("Your fasting blood sugar is above the normal range.")
         else:
             if glucose >= 200:
-                flags.append("Random blood glucose is in a very high range (>=200 mg/dL).")
+                flags.append("Your blood sugar is very high.")
             elif glucose >= 140:
-                flags.append("Random blood glucose is elevated and should be monitored.")
+                flags.append("Your blood sugar is higher than normal and should be monitored.")
 
         # BMI
         if bmi >= 30:
-            flags.append("BMI is in the obesity range.")
+            flags.append("Your body weight is in the obesity range.")
         elif bmi >= 25:
-            flags.append("BMI is above the recommended healthy range.")
+            flags.append("Your body weight is above the healthy range.")
 
         # BP
         if sbp >= 140 or dbp >= 90:
-            flags.append("Blood pressure is in the high range.")
+            flags.append("Your blood pressure is high.")
         elif sbp >= 130 or dbp >= 80:
-            flags.append("Blood pressure is above optimal range.")
+            flags.append("Your blood pressure is slightly above the recommended range.")
 
         # Waist
         if self._is_high_waist(gender, waist):
-            flags.append("Waist circumference suggests increased metabolic risk.")
+            flags.append("Your waist measurement suggests increased health risk.")
 
         # Combined risk clustering
         metabolic_count = 0
@@ -233,7 +233,7 @@ class RecommendationEngine:
             metabolic_count += 1
 
         if metabolic_count >= 3:
-            flags.append("Multiple metabolic risk indicators are present and warrant closer follow-up.")
+            flags.append("Several health indicators suggest that closer follow-up may be helpful.")
 
         return self._deduplicate(flags)
 
@@ -256,72 +256,72 @@ class RecommendationEngine:
         # Base recommendation from screening result
         if predicted_class == 1 or prediction_code == "positive":
             recommendations.append(
-                "Consider confirmatory diabetes screening or follow-up laboratory testing with a healthcare professional."
+                "You should consider follow-up testing with a healthcare professional."
             )
             recommendations.append(
-                "This screening result should be reviewed together with clinical history, symptoms, and laboratory evaluation."
+                "This screening result should be reviewed together with your medical history, symptoms, and any additional test results."
             )
         else:
             recommendations.append(
-                "Current screening does not strongly suggest diabetes, but ongoing preventive monitoring is still recommended."
+                "At this time, the screening result does not strongly suggest diabetes, and no major risk factors were highlighted"
             )
 
         # Clinical flags
         if clinical_flags:
             recommendations.append(
-                "Because clinical warning signs are present, consider closer follow-up even if this is only a screening result."
+                "Because some health warning signs were found, it may be helpful to follow up with a healthcare professional."
             )
 
         # Factor-specific recommendations
         if (
-            "Fasting glucose in diabetes-range threshold" in factor_set
-            or "Fasting glucose in prediabetes range" in factor_set
-            or "Very high random blood glucose" in factor_set
-            or "Elevated random blood glucose" in factor_set
+            "High fasting blood sugar" in factor_set
+            or "Fasting blood sugar above the normal range" in factor_set
+            or "Very high blood sugar" in factor_set
+            or "Higher-than-normal blood sugar" in factor_set
         ):
             recommendations.append(
-                "Monitor blood glucose trends and review diet, meal timing, and follow-up testing strategy."
+                "Keep monitoring your blood sugar and it may help to review your eating habits and health plan."
             )
 
-        if "High BMI" in factor_set or "Obesity-level BMI" in factor_set:
+        if "Body weight above the healthy range" in factor_set or "Body weight in the obesity range" in factor_set:
             recommendations.append(
-                "Weight management through balanced nutrition and regular physical activity may help reduce diabetes risk."
+                "A balanced diet and regular physical activity may help improve your long-term health."
             )
 
-        if "Low physical activity level" in factor_set:
+        if "Low physical activity" in factor_set:
             recommendations.append(
-                "Increase physical activity gradually toward a consistent weekly routine when appropriate."
+                "Try to increase physical activity gradually in a way that fits your daily routine."
             )
 
-        if "Hypertension history" in factor_set or "Elevated blood pressure" in factor_set:
+        if "History of high blood pressure" in factor_set or "High blood pressure reading" in factor_set:
             recommendations.append(
-                "Monitor blood pressure and address cardiometabolic risk factors in parallel."
+                "Keep monitoring your blood pressure and discuss it with a healthcare professional if needed."
             )
 
-        if "Smoking-related risk" in factor_set:
+        if "Smoking history" in factor_set:
             recommendations.append(
-                "Reducing or stopping smoking may improve long-term cardiometabolic health."
+                "Reducing or stopping smoking can support better long-term health."
             )
 
         if "Family history of diabetes" in factor_set:
             recommendations.append(
-                "Because of family history, periodic diabetes screening remains important over time."
+                "Because diabetes can run in families, regular screening remains important."
             )
 
-        if "High waist circumference" in factor_set:
+        if "High waist measurement" in factor_set:
             recommendations.append(
-                "Reducing abdominal adiposity may help lower metabolic risk."
+                "Managing body weight, especially around the waist, may help reduce health risks."
             )
 
         if "History of heart disease" in factor_set:
             recommendations.append(
-                "Coordinate diabetes screening with cardiovascular follow-up when relevant."
+                "Because of your heart health history, regular follow-up is especially important."
             )
 
         # Lower-concern case
         if prediction_code == "negative" and len(clinical_flags) == 0 and len(key_risk_factors) <= 1:
             recommendations.append(
-                "Maintain healthy lifestyle habits and continue routine preventive health checks."
+                "Continue healthy daily habits and routine health check-ups."
             )
 
         return self._deduplicate(recommendations)
@@ -348,20 +348,20 @@ class RecommendationEngine:
 
         if prediction_code == "positive":
             text = (
-                f"The model classified this case as {prediction_label} ({screening_result}). "
-                f"Important contributing factors include {factor_phrase}."
+                f"Your result is {prediction_label} ({screening_result}). "
+                f"The main factors linked to this result include {factor_phrase}."
             )
         else:
             text = (
-                f"The model classified this case as {prediction_label} ({screening_result}). "
-                f"At this time, the screening result is not strongly suggestive of diabetes, although {factor_phrase} should still be monitored."
+                f"Your result is {prediction_label} ({screening_result}). "
+                f"At this time, the screening result does not strongly suggest diabetes, although {factor_phrase} should still be monitored."
             )
 
         if clinical_flags:
-            text += f" Clinical review note: {clinical_flags[0]}"
+            text += f" One important point to note is: {clinical_flags[0]}"
 
         text += (
-            " This output is intended for screening support and not as a standalone medical diagnosis."
+            " This result is intended to support screening and should not be used as a medical diagnosis on its own."
         )
 
         return text

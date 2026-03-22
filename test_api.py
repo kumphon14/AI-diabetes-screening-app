@@ -14,8 +14,10 @@ def load_test_cases(file_path: str) -> list[dict[str, Any]]:
     """
     รองรับ test_cases.json รูปแบบ:
     {
-      "positive_cases": [...],
-      "negative_cases": [...]
+      "clear_positive_cases": [...],
+      "clear_negative_cases": [...],
+      "borderline_cases": [...],
+      "edge_and_special_cases": [...]
     }
 
     และแปลงเป็น list เดียวสำหรับ loop ทดสอบ
@@ -29,31 +31,48 @@ def load_test_cases(file_path: str) -> list[dict[str, Any]]:
 
     if not isinstance(data, dict):
         raise ValueError(
-            "test_cases.json must contain a JSON object with "
-            "'positive_cases' and 'negative_cases'."
+            "test_cases.json must contain a JSON object with grouped case lists."
         )
 
-    positive_cases = data.get("positive_cases", [])
-    negative_cases = data.get("negative_cases", [])
-
-    if not isinstance(positive_cases, list) or not isinstance(negative_cases, list):
-        raise ValueError("'positive_cases' and 'negative_cases' must both be lists.")
+    group_mapping = {
+        "clear_positive_cases": {
+            "expected_group": "positive",
+            "evaluation_mode": "strict",
+            "display_group": "clear_positive_cases",
+        },
+        "clear_negative_cases": {
+            "expected_group": "negative",
+            "evaluation_mode": "strict",
+            "display_group": "clear_negative_cases",
+        },
+        "borderline_cases": {
+            "expected_group": "borderline",
+            "evaluation_mode": "observe",
+            "display_group": "borderline_cases",
+        },
+        "edge_and_special_cases": {
+            "expected_group": "special",
+            "evaluation_mode": "observe",
+            "display_group": "edge_and_special_cases",
+        },
+    }
 
     merged_cases: list[dict[str, Any]] = []
 
-    for case in positive_cases:
-        if not isinstance(case, dict):
-            continue
-        case_copy = case.copy()
-        case_copy["_expected_group"] = "positive"
-        merged_cases.append(case_copy)
+    for group_name, meta in group_mapping.items():
+        cases = data.get(group_name, [])
+        if not isinstance(cases, list):
+            raise ValueError(f"'{group_name}' must be a list.")
 
-    for case in negative_cases:
-        if not isinstance(case, dict):
-            continue
-        case_copy = case.copy()
-        case_copy["_expected_group"] = "negative"
-        merged_cases.append(case_copy)
+        for case in cases:
+            if not isinstance(case, dict):
+                continue
+
+            case_copy = case.copy()
+            case_copy["_expected_group"] = meta["expected_group"]
+            case_copy["_evaluation_mode"] = meta["evaluation_mode"]
+            case_copy["_display_group"] = meta["display_group"]
+            merged_cases.append(case_copy)
 
     return merged_cases
 
@@ -75,11 +94,14 @@ def check_api_health() -> bool:
 
 def build_payload(case: dict[str, Any]) -> dict[str, Any]:
     """
-    ลบ field ที่ใช้เพื่อ test ออกก่อนยิง API เช่น:
-    - case_id
-    - _expected_group
+    ลบ field ที่ใช้เพื่อ test ออกก่อนยิง API
     """
-    excluded_keys = {"case_id", "_expected_group"}
+    excluded_keys = {
+        "case_id",
+        "_expected_group",
+        "_evaluation_mode",
+        "_display_group",
+    }
     return {k: v for k, v in case.items() if k not in excluded_keys}
 
 
@@ -98,62 +120,86 @@ def post_case(case_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def evaluate_prediction(
-    expected_group: str,
-    response_data: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    เทียบผลคาดหวังแบบง่าย:
-    - positive -> predicted_class ควรเป็น 1 หรือ prediction_code = positive
-    - negative -> predicted_class ควรเป็น 0 หรือ prediction_code = negative
-    """
+def detect_actual_group(response_data: dict[str, Any]) -> str | None:
     predicted_class = response_data.get("predicted_class")
     prediction_code = str(response_data.get("prediction_code", "")).lower()
 
-    actual_group = None
     if predicted_class == 1 or prediction_code == "positive":
-        actual_group = "positive"
-    elif predicted_class == 0 or prediction_code == "negative":
-        actual_group = "negative"
+        return "positive"
+    if predicted_class == 0 or prediction_code == "negative":
+        return "negative"
 
-    passed = actual_group == expected_group
+    return None
+
+
+def evaluate_prediction(
+    expected_group: str,
+    response_data: dict[str, Any],
+    evaluation_mode: str,
+) -> dict[str, Any]:
+    """
+    strict:
+      - positive ต้องได้ positive
+      - negative ต้องได้ negative
+
+    observe:
+      - borderline / special จะไม่ตัดสิน fail ตรง ๆ
+      - ใช้เพื่อดูผลลัพธ์และความสมเหตุสมผลของ explanation
+    """
+    actual_group = detect_actual_group(response_data)
+
+    if evaluation_mode == "strict":
+        passed = actual_group == expected_group
+    else:
+        passed = True
 
     return {
         "expected_group": expected_group,
         "actual_group": actual_group,
         "passed": passed,
+        "evaluation_mode": evaluation_mode,
     }
 
 
 def print_result(
     result: dict[str, Any],
     expected_group: str,
+    evaluation_mode: str,
+    display_group: str,
 ) -> dict[str, Any]:
     case_name = result["case_name"]
     status_code = result["status_code"]
     response = result["response"]
 
-    print("\n" + "=" * 80)
-    print(f"CASE ID        : {case_name}")
-    print(f"EXPECTED GROUP : {expected_group}")
-    print(f"HTTP STATUS    : {status_code}")
+    print("\n" + "=" * 90)
+    print(f"CASE ID          : {case_name}")
+    print(f"CASE GROUP       : {display_group}")
+    print(f"EXPECTED GROUP   : {expected_group}")
+    print(f"EVALUATION MODE  : {evaluation_mode}")
+    print(f"HTTP STATUS      : {status_code}")
 
     if status_code != 200:
-        print("RESULT         : FAILED (HTTP ERROR)")
+        print("RESULT           : FAILED (HTTP ERROR)")
         print(json.dumps(response, indent=2, ensure_ascii=False))
         return {
             "case_name": case_name,
+            "display_group": display_group,
             "expected_group": expected_group,
             "actual_group": None,
             "passed": False,
             "status_code": status_code,
+            "evaluation_mode": evaluation_mode,
         }
 
     data = response.get("data", {})
-    evaluation = evaluate_prediction(expected_group, data)
+    evaluation = evaluate_prediction(expected_group, data, evaluation_mode)
 
-    print(f"TEST PASSED    : {evaluation['passed']}")
-    print(f"ACTUAL GROUP   : {evaluation['actual_group']}")
+    if evaluation_mode == "strict":
+        print(f"TEST PASSED      : {evaluation['passed']}")
+    else:
+        print("TEST PASSED      : OBSERVE ONLY")
+
+    print(f"ACTUAL GROUP     : {evaluation['actual_group']}")
     print("\n--- Prediction Output ---")
     print(f"prediction_code      : {data.get('prediction_code')}")
     print(f"prediction_label     : {data.get('prediction_label')}")
@@ -190,53 +236,71 @@ def print_result(
 
     return {
         "case_name": case_name,
+        "display_group": display_group,
         "expected_group": expected_group,
         "actual_group": evaluation["actual_group"],
         "passed": evaluation["passed"],
         "status_code": status_code,
+        "evaluation_mode": evaluation_mode,
     }
 
 
 def print_summary(all_results: list[dict[str, Any]]) -> None:
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 90)
     print("SUMMARY")
 
     total_cases = len(all_results)
     http_success_count = sum(1 for r in all_results if r["status_code"] == 200)
     http_fail_count = total_cases - http_success_count
 
-    passed_count = sum(1 for r in all_results if r["passed"])
-    failed_count = total_cases - passed_count
+    strict_results = [r for r in all_results if r["evaluation_mode"] == "strict"]
+    observe_results = [r for r in all_results if r["evaluation_mode"] == "observe"]
 
-    positive_total = sum(1 for r in all_results if r["expected_group"] == "positive")
-    negative_total = sum(1 for r in all_results if r["expected_group"] == "negative")
+    strict_passed = sum(1 for r in strict_results if r["passed"])
+    strict_failed = len(strict_results) - strict_passed
 
-    positive_passed = sum(
-        1 for r in all_results
-        if r["expected_group"] == "positive" and r["passed"]
-    )
-    negative_passed = sum(
-        1 for r in all_results
-        if r["expected_group"] == "negative" and r["passed"]
-    )
+    print(f"Total cases           : {total_cases}")
+    print(f"HTTP success          : {http_success_count}")
+    print(f"HTTP failed           : {http_fail_count}")
+    print(f"Strict evaluation     : {len(strict_results)}")
+    print(f"Strict passed         : {strict_passed}")
+    print(f"Strict failed         : {strict_failed}")
+    print(f"Observe-only cases    : {len(observe_results)}")
 
-    print(f"Total cases        : {total_cases}")
-    print(f"HTTP success       : {http_success_count}")
-    print(f"HTTP failed        : {http_fail_count}")
-    print(f"Prediction passed  : {passed_count}")
-    print(f"Prediction failed  : {failed_count}")
-    print(f"Positive cases     : {positive_passed}/{positive_total}")
-    print(f"Negative cases     : {negative_passed}/{negative_total}")
+    group_names = [
+        "clear_positive_cases",
+        "clear_negative_cases",
+        "borderline_cases",
+        "edge_and_special_cases",
+    ]
 
-    print("\nFailed Cases:")
-    failed_cases = [r for r in all_results if not r["passed"]]
+    print("\nGroup Breakdown:")
+    for group_name in group_names:
+        group_cases = [r for r in all_results if r["display_group"] == group_name]
+        if not group_cases:
+            print(f" - {group_name}: 0")
+            continue
+
+        if group_name in {"clear_positive_cases", "clear_negative_cases"}:
+            passed = sum(1 for r in group_cases if r["passed"])
+            print(f" - {group_name}: {passed}/{len(group_cases)} passed")
+        else:
+            print(f" - {group_name}: {len(group_cases)} observed")
+
+    failed_cases = [
+        r for r in strict_results
+        if not r["passed"]
+    ]
+
+    print("\nStrict Failed Cases:")
     if not failed_cases:
         print(" - None")
     else:
         for item in failed_cases:
             print(
-                f" - {item['case_name']} | expected={item['expected_group']} "
-                f"| actual={item['actual_group']} | http={item['status_code']}"
+                f" - {item['case_name']} | group={item['display_group']} "
+                f"| expected={item['expected_group']} | actual={item['actual_group']} "
+                f"| http={item['status_code']}"
             )
 
 
@@ -265,6 +329,8 @@ def main() -> None:
     for case in test_cases:
         case_name = str(case.get("case_id", "UNKNOWN_CASE"))
         expected_group = str(case.get("_expected_group", "unknown")).lower()
+        evaluation_mode = str(case.get("_evaluation_mode", "strict")).lower()
+        display_group = str(case.get("_display_group", "unknown_group"))
         payload = build_payload(case)
 
         if not isinstance(payload, dict):
@@ -273,21 +339,30 @@ def main() -> None:
 
         try:
             result = post_case(case_name, payload)
-            final_result = print_result(result, expected_group)
+            final_result = print_result(
+                result=result,
+                expected_group=expected_group,
+                evaluation_mode=evaluation_mode,
+                display_group=display_group,
+            )
             all_results.append(final_result)
         except requests.RequestException as e:
-            print("\n" + "=" * 80)
-            print(f"CASE ID        : {case_name}")
-            print(f"EXPECTED GROUP : {expected_group}")
-            print("RESULT         : REQUEST FAILED")
-            print(f"Error          : {e}")
+            print("\n" + "=" * 90)
+            print(f"CASE ID          : {case_name}")
+            print(f"CASE GROUP       : {display_group}")
+            print(f"EXPECTED GROUP   : {expected_group}")
+            print(f"EVALUATION MODE  : {evaluation_mode}")
+            print("RESULT           : REQUEST FAILED")
+            print(f"Error            : {e}")
 
             all_results.append({
                 "case_name": case_name,
+                "display_group": display_group,
                 "expected_group": expected_group,
                 "actual_group": None,
-                "passed": False,
+                "passed": False if evaluation_mode == "strict" else True,
                 "status_code": 0,
+                "evaluation_mode": evaluation_mode,
             })
 
     print_summary(all_results)

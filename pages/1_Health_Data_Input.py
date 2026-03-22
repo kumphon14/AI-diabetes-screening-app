@@ -324,9 +324,9 @@ def clear_previous_prediction_state():
 # ==========================================
 st.markdown("""
 <div class="hero-banner">
-    <div class="hero-eyebrow">🩺 DiaScreen AI · Diabetes Risk Screening</div>
+    <div class="hero-eyebrow">🩺 DiaScreen AI - Diabetes Screening</div>
     <h1 class="hero-title">Patient Health Profile</h1>
-    <p class="hero-sub">Complete the medical and lifestyle questionnaire below to receive an AI-powered diabetes risk assessment.</p>
+    <p class="hero-sub">Complete the health and lifestyle questionnaire below to receive a simple diabetes screening result and helpful recommendations.</p>
     <div class="hero-badge">⚡ Powered by AI · Instant Results</div>
 </div>
 """, unsafe_allow_html=True)

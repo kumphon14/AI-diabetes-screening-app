@@ -1,0 +1,144 @@
+/* =========================================
+   DiaScreen AI - Global Styles
+   ========================================= */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap');
+
+/* Global Font Family */
+html, body, [class*="css"] {
+    font-family: 'Inter', 'Prompt', sans-serif !important;
+}
+
+/* Base Background */
+.stApp {
+    background-color: #f3f4f6; /* Modern subtle gray */
+    color: #1e293b; /* slate-800 */
+}
+
+/* Hide Default Streamlit Elements */
+header {visibility: hidden;}
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* =========================================
+   Streamlit Components Overrides
+   ========================================= */
+
+/* Inputs & Selectboxes (Mimic Tailwind focus and border) */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stSelectbox > div > div > div {
+    border-radius: 0.5rem !important; /* rounded-lg */
+    border-color: #cbd5e1 !important; /* border-slate-300 */
+    background-color: #ffffff !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Focus State for Inputs */
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus,
+.stSelectbox > div > div > div:focus-within {
+    border-color: #3b82f6 !important; /* focus:border-blue-500 */
+    box-shadow: 0 0 0 1px #3b82f6 !important; /* focus:ring-1 */
+}
+
+/* Primary Button Styling */
+div.stButton > button:first-child {
+    background-color: #2563eb;
+    color: white;
+    border-radius: 0.75rem; /* rounded-xl */
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    font-weight: 500;
+    border: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease-in-out;
+    width: 100%;
+}
+
+div.stButton > button:first-child:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+    color: white;
+}
+
+div.stButton > button:first-child:active {
+    transform: translateY(0);
+}
+
+/* Secondary Button (If needed later) */
+button[kind="secondary"] {
+    background-color: white !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+/* =========================================
+   Custom UI Classes (Use with st.markdown)
+   ========================================= */
+
+/* Modern Clinic Card */
+.clinic-card {
+    background-color: #ffffff;
+    border-radius: 0.75rem; /* 12px */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    border: 1px solid #e5e7eb;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Labels and Small Text */
+.input-label {
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+    color: #334155; /* text-slate-700 */
+    margin-bottom: 0.25rem;
+    display: block;
+}
+
+.section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #2563eb; /* text-blue-600 */
+    text-transform: uppercase;
+    letter-spacing: 0.05em; /* tracking-wider */
+    margin-bottom: 1rem;
+    margin-top: 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 0.5rem;
+}
+
+/* AI Processing Loader */
+.loader-spinner {
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid #2563eb;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Risk Level Badges */
+.badge-low { background-color: #d1fae5; color: #047857; }
+.badge-moderate { background-color: #fef3c7; color: #b45309; }
+.badge-high { background-color: #ffedd5; color: #c2410c; }
+.badge-very-high { background-color: #fee2e2; color: #b91c1c; }
+
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+}

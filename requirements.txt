@@ -1,0 +1,15 @@
+---
+
+## `requirements.txt`
+
+```txt
+streamlit
+fastapi
+uvicorn
+pydantic
+requests
+pandas
+numpy
+scikit-learn
+joblib
+xgboost

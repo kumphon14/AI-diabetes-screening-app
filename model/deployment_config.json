@@ -1,0 +1,48 @@
+{
+    "exported_at": "2026-03-20T06:23:19.755175",
+    "model_name": "XGBoost",
+    "target": "diabetes",
+    "categorical_features": [
+        "gender",
+        "smoking_history",
+        "physical_activity_level"
+    ],
+    "binary_features": [
+        "hypertension",
+        "heart_disease",
+        "family_history_diabetes"
+    ],
+    "numeric_features": [
+        "age",
+        "bmi",
+        "blood_glucose_level_log",
+        "height",
+        "weight",
+        "waist_circumference",
+        "systolic_bp",
+        "diastolic_bp"
+    ],
+    "selected_features": [
+        "gender",
+        "smoking_history",
+        "physical_activity_level",
+        "hypertension",
+        "heart_disease",
+        "family_history_diabetes",
+        "age",
+        "bmi",
+        "blood_glucose_level_log",
+        "height",
+        "weight",
+        "waist_circumference",
+        "systolic_bp",
+        "diastolic_bp"
+    ],
+    "non_lab_model": true,
+    "uses_bmi_recalculation": true,
+    "uses_blood_glucose_policy_a": true,
+    "pipeline_artifact": "best_pipeline.joblib",
+    "calibrated_model_artifact": "calibrated_model.joblib",
+    "uses_calibrated_model": true,
+    "selected_threshold": 0.38
+}

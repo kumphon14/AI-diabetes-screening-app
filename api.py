@@ -23,7 +23,10 @@ app = FastAPI(
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://ai-diabetes-screening-app-f2uandhcedmyys3q5wyvrz.streamlit.app",
+        "http://localhost:8501",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -19,7 +19,10 @@ from utils.session_manager import (
 # ==========================================
 # API Config
 # ==========================================
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "https://ai-diabetes-screening-app.onrender.com"
+)
 PREDICT_ENDPOINT = f"{API_BASE_URL}/predict"
 HEALTH_ENDPOINT = f"{API_BASE_URL}/health"
 API_TIMEOUT_SECONDS = 30
@@ -388,38 +391,58 @@ st.markdown("""
 def call_predict_api(payload: dict) -> dict:
     if not isinstance(payload, dict):
         raise RuntimeError("Invalid API payload: payload must be a dictionary.")
+
     try:
-        response = requests.post(PREDICT_ENDPOINT, json=payload, timeout=API_TIMEOUT_SECONDS)
+        response = requests.post(
+            PREDICT_ENDPOINT,
+            json=payload,
+            timeout=API_TIMEOUT_SECONDS
+        )
     except requests.exceptions.ConnectionError:
-        raise RuntimeError("Cannot connect to the FastAPI server. Please make sure the API is running at http://127.0.0.1:8000")
+        raise RuntimeError(
+            f"Cannot connect to the screening API at {API_BASE_URL}"
+        )
     except requests.exceptions.Timeout:
         raise RuntimeError("The prediction API timed out.")
     except requests.exceptions.RequestException as e:
         raise RuntimeError(f"API request failed: {str(e)}")
+
     try:
         response_json = response.json()
     except ValueError:
-        raise RuntimeError(f"API returned a non-JSON response (status {response.status_code}).")
+        raise RuntimeError(
+            f"API returned a non-JSON response (status {response.status_code})."
+        )
+
     if response.status_code != 200:
         detail = response_json.get("detail", "Unknown API error")
         raise RuntimeError(f"API error ({response.status_code}): {detail}")
+
     if response_json.get("status") != "success":
         raise RuntimeError("Prediction API did not return success status.")
+
     if "data" not in response_json:
         raise RuntimeError("Prediction API response is missing 'data' field.")
+
     if not isinstance(response_json["data"], dict):
         raise RuntimeError("Prediction API response field 'data' must be a dictionary.")
+
     return response_json
 
 
-def api_health_check() -> bool:
-    try:
-        response = requests.get(HEALTH_ENDPOINT, timeout=10)
-        if response.status_code != 200:
-            return False
-        return response.json().get("status") == "ok"
-    except (requests.exceptions.RequestException, ValueError):
-        return False
+def api_health_check(retries: int = 3, timeout: int = 15) -> bool:
+    for attempt in range(retries):
+        try:
+            response = requests.get(HEALTH_ENDPOINT, timeout=timeout)
+            if response.status_code == 200 and response.json().get("status") == "ok":
+                return True
+        except (requests.exceptions.RequestException, ValueError):
+            pass
+
+        if attempt < retries - 1:
+            time.sleep(2)
+
+    return False
 
 
 def redirect_to_input_with_warning():
@@ -619,7 +642,7 @@ try:
 
     if not api_health_check():
         set_step(0, "error", 10, "Cannot reach FastAPI server.")
-        error_msg = "Unable to connect to the FastAPI server. Please start the API: uvicorn api:app --reload"
+        error_msg = f"Unable to connect to the screening API at {API_BASE_URL}"
         save_processing_error(error_msg)
         st.markdown(f"""
         <div class="error-card">
@@ -674,7 +697,6 @@ except Exception as e:
         if s["state"] == "running":
             s["state"] = "error"
     render_pipeline(STEPS)
-    progress_bar.progress(progress_bar)
 
     error_message = f"Prediction API Error: {str(e)}"
     save_processing_error(error_message)

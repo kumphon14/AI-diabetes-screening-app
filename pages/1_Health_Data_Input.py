@@ -312,8 +312,13 @@ def normalize_smoking_history(value: str) -> str:
 
 def clear_previous_prediction_state():
     keys_to_clear = [
-        "prediction_result", "api_response", "api_error",
-        "risk_result", "recommendation_bundle", "processing_error",
+        "prediction_result",
+        "api_response",
+        "api_error",
+        "risk_result",
+        "screening_result",
+        "recommendation_bundle",
+        "processing_error",
     ]
     for key in keys_to_clear:
         if key in st.session_state:

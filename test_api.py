@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import requests
 
@@ -123,11 +123,51 @@ def post_case(case_name: str, payload: dict[str, Any]) -> dict[str, Any]:
 def detect_actual_group(response_data: dict[str, Any]) -> str | None:
     predicted_class = response_data.get("predicted_class")
     prediction_code = str(response_data.get("prediction_code", "")).lower()
+    screening_result = str(response_data.get("screening_result", "")).lower()
+    prediction_label = str(response_data.get("prediction_label", "")).lower()
 
     if predicted_class == 1 or prediction_code == "positive":
         return "positive"
     if predicted_class == 0 or prediction_code == "negative":
         return "negative"
+
+    if "likely diabetes" in screening_result or "likely diabetes" in prediction_label:
+        return "positive"
+    if "unlikely diabetes" in screening_result or "unlikely diabetes" in prediction_label:
+        return "negative"
+
+    return None
+
+
+def to_screening_label(group: str | None) -> str:
+    if group == "positive":
+        return "Likely Diabetes"
+    if group == "negative":
+        return "Unlikely Diabetes"
+    return "Unknown"
+
+
+def extract_probability(response_data: dict[str, Any]) -> Optional[float]:
+    """
+    รองรับหลายชื่อ field เผื่อ API ส่ง probability กลับมาคนละ key
+    """
+    candidate_keys = [
+        "probability",
+        "risk_probability",
+        "positive_class_probability",
+        "diabetes_probability",
+        "prediction_probability",
+        "score",
+    ]
+
+    for key in candidate_keys:
+        value = response_data.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
 
     return None
 
@@ -171,41 +211,57 @@ def print_result(
     status_code = result["status_code"]
     response = result["response"]
 
-    print("\n" + "=" * 90)
-    print(f"CASE ID          : {case_name}")
-    print(f"CASE GROUP       : {display_group}")
-    print(f"EXPECTED GROUP   : {expected_group}")
-    print(f"EVALUATION MODE  : {evaluation_mode}")
-    print(f"HTTP STATUS      : {status_code}")
+    print("\n" + "=" * 100)
+    print(f"CASE ID              : {case_name}")
+    print(f"CASE GROUP           : {display_group}")
+    print(f"EXPECTED GROUP       : {expected_group}")
+    print(f"EXPECTED SCREENING   : {to_screening_label(expected_group)}")
+    print(f"EVALUATION MODE      : {evaluation_mode}")
+    print(f"HTTP STATUS          : {status_code}")
 
     if status_code != 200:
-        print("RESULT           : FAILED (HTTP ERROR)")
+        print("RESULT               : FAILED (HTTP ERROR)")
         print(json.dumps(response, indent=2, ensure_ascii=False))
         return {
             "case_name": case_name,
             "display_group": display_group,
             "expected_group": expected_group,
+            "expected_screening_label": to_screening_label(expected_group),
             "actual_group": None,
+            "actual_screening_label": "Unknown",
             "passed": False,
             "status_code": status_code,
             "evaluation_mode": evaluation_mode,
+            "threshold": None,
+            "probability": None,
         }
 
     data = response.get("data", {})
     evaluation = evaluate_prediction(expected_group, data, evaluation_mode)
 
-    if evaluation_mode == "strict":
-        print(f"TEST PASSED      : {evaluation['passed']}")
-    else:
-        print("TEST PASSED      : OBSERVE ONLY")
+    threshold = data.get("threshold")
+    probability = extract_probability(data)
+    actual_screening_label = to_screening_label(evaluation["actual_group"])
 
-    print(f"ACTUAL GROUP     : {evaluation['actual_group']}")
+    if evaluation_mode == "strict":
+        print(f"TEST PASSED          : {evaluation['passed']}")
+    else:
+        print("TEST PASSED          : OBSERVE ONLY")
+
+    print(f"ACTUAL GROUP         : {evaluation['actual_group']}")
+    print(f"SCREENING RESULT     : {actual_screening_label}")
+    print(f"THRESHOLD USED       : {threshold}")
+
+    if probability is not None:
+        print(f"PREDICTED PROBABILITY: {probability:.4f}")
+    else:
+        print("PREDICTED PROBABILITY: N/A")
+
     print("\n--- Prediction Output ---")
     print(f"prediction_code      : {data.get('prediction_code')}")
     print(f"prediction_label     : {data.get('prediction_label')}")
     print(f"screening_result     : {data.get('screening_result')}")
     print(f"predicted_class      : {data.get('predicted_class')}")
-    print(f"threshold            : {data.get('threshold')}")
 
     print("\n--- Short Interpretation ---")
     print(data.get("short_interpretation"))
@@ -238,16 +294,122 @@ def print_result(
         "case_name": case_name,
         "display_group": display_group,
         "expected_group": expected_group,
+        "expected_screening_label": to_screening_label(expected_group),
         "actual_group": evaluation["actual_group"],
+        "actual_screening_label": actual_screening_label,
         "passed": evaluation["passed"],
         "status_code": status_code,
         "evaluation_mode": evaluation_mode,
+        "threshold": threshold,
+        "probability": probability,
     }
 
 
+def print_screening_confusion(strict_results: list[dict[str, Any]]) -> None:
+    tp = sum(
+        1 for r in strict_results
+        if r["expected_group"] == "positive" and r["actual_group"] == "positive"
+    )
+    tn = sum(
+        1 for r in strict_results
+        if r["expected_group"] == "negative" and r["actual_group"] == "negative"
+    )
+    fp = sum(
+        1 for r in strict_results
+        if r["expected_group"] == "negative" and r["actual_group"] == "positive"
+    )
+    fn = sum(
+        1 for r in strict_results
+        if r["expected_group"] == "positive" and r["actual_group"] == "negative"
+    )
+
+    total = len(strict_results)
+    correct = tp + tn
+    incorrect = fp + fn
+    accuracy = (correct / total * 100) if total > 0 else 0.0
+
+    print("\nScreening Confusion Summary:")
+    print(f" - True Positive  (Likely Diabetes predicted correctly)   : {tp}")
+    print(f" - True Negative  (Unlikely Diabetes predicted correctly) : {tn}")
+    print(f" - False Positive (Predicted Likely but actually negative): {fp}")
+    print(f" - False Negative (Predicted Unlikely but actually positive): {fn}")
+
+    print("\nScreening Performance:")
+    print(f" - Correct predictions   : {correct}")
+    print(f" - Incorrect predictions : {incorrect}")
+    print(f" - Accuracy              : {accuracy:.2f}%")
+
+    precision = (tp / (tp + fp)) if (tp + fp) > 0 else 0.0
+    recall = (tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+    specificity = (tn / (tn + fp)) if (tn + fp) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+
+    print("\nAdditional Metrics for Research Analysis:")
+    print(f" - Precision   : {precision:.4f}")
+    print(f" - Recall      : {recall:.4f}")
+    print(f" - Specificity : {specificity:.4f}")
+    print(f" - F1-score    : {f1:.4f}")
+
+
+def print_threshold_summary(all_results: list[dict[str, Any]]) -> None:
+    thresholds = [r["threshold"] for r in all_results if r["threshold"] is not None]
+
+    print("\nThreshold Summary:")
+    if not thresholds:
+        print(" - No threshold returned by API")
+        return
+
+    unique_thresholds = sorted(set(thresholds))
+    print(f" - Threshold values found : {unique_thresholds}")
+
+    if len(unique_thresholds) == 1:
+        print(f" - Operational threshold  : {unique_thresholds[0]}")
+    else:
+        print(" - Note: multiple threshold values were returned across cases")
+
+
+def print_probability_summary(all_results: list[dict[str, Any]]) -> None:
+    probability_results = [r for r in all_results if r["probability"] is not None]
+
+    print("\nProbability Summary:")
+    if not probability_results:
+        print(" - Probability was not returned by API")
+        return
+
+    probs = [r["probability"] for r in probability_results]
+    avg_prob = sum(probs) / len(probs)
+    min_prob = min(probs)
+    max_prob = max(probs)
+
+    positive_probs = [r["probability"] for r in probability_results if r["actual_group"] == "positive"]
+    negative_probs = [r["probability"] for r in probability_results if r["actual_group"] == "negative"]
+
+    print(f" - Cases with probability output : {len(probability_results)}")
+    print(f" - Average probability           : {avg_prob:.4f}")
+    print(f" - Min probability               : {min_prob:.4f}")
+    print(f" - Max probability               : {max_prob:.4f}")
+
+    if positive_probs:
+        print(f" - Avg probability (Likely Diabetes)   : {sum(positive_probs)/len(positive_probs):.4f}")
+    if negative_probs:
+        print(f" - Avg probability (Unlikely Diabetes) : {sum(negative_probs)/len(negative_probs):.4f}")
+
+
+def print_case_level_screening_summary(all_results: list[dict[str, Any]]) -> None:
+    print("\nCase-level Screening Summary:")
+    for r in all_results:
+        print(
+            f" - {r['case_name']}: "
+            f"expected={r['expected_screening_label']}, "
+            f"predicted={r['actual_screening_label']}, "
+            f"threshold={r['threshold']}, "
+            f"passed={r['passed']}"
+        )
+
+
 def print_summary(all_results: list[dict[str, Any]]) -> None:
-    print("\n" + "=" * 90)
-    print("SUMMARY")
+    print("\n" + "=" * 100)
+    print("FINAL SUMMARY")
 
     total_cases = len(all_results)
     http_success_count = sum(1 for r in all_results if r["status_code"] == 200)
@@ -259,13 +421,13 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
     strict_passed = sum(1 for r in strict_results if r["passed"])
     strict_failed = len(strict_results) - strict_passed
 
-    print(f"Total cases           : {total_cases}")
-    print(f"HTTP success          : {http_success_count}")
-    print(f"HTTP failed           : {http_fail_count}")
-    print(f"Strict evaluation     : {len(strict_results)}")
-    print(f"Strict passed         : {strict_passed}")
-    print(f"Strict failed         : {strict_failed}")
-    print(f"Observe-only cases    : {len(observe_results)}")
+    print(f"Total cases              : {total_cases}")
+    print(f"HTTP success             : {http_success_count}")
+    print(f"HTTP failed              : {http_fail_count}")
+    print(f"Strict evaluation cases  : {len(strict_results)}")
+    print(f"Strict passed            : {strict_passed}")
+    print(f"Strict failed            : {strict_failed}")
+    print(f"Observe-only cases       : {len(observe_results)}")
 
     group_names = [
         "clear_positive_cases",
@@ -287,10 +449,7 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
         else:
             print(f" - {group_name}: {len(group_cases)} observed")
 
-    failed_cases = [
-        r for r in strict_results
-        if not r["passed"]
-    ]
+    failed_cases = [r for r in strict_results if not r["passed"]]
 
     print("\nStrict Failed Cases:")
     if not failed_cases:
@@ -298,10 +457,16 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
     else:
         for item in failed_cases:
             print(
-                f" - {item['case_name']} | group={item['display_group']} "
-                f"| expected={item['expected_group']} | actual={item['actual_group']} "
-                f"| http={item['status_code']}"
+                f" - {item['case_name']} | "
+                f"expected={item['expected_screening_label']} | "
+                f"predicted={item['actual_screening_label']} | "
+                f"http={item['status_code']}"
             )
+
+    print_case_level_screening_summary(all_results)
+    print_screening_confusion(strict_results)
+    print_threshold_summary(all_results)
+    print_probability_summary(all_results)
 
 
 def main() -> None:
@@ -346,23 +511,29 @@ def main() -> None:
                 display_group=display_group,
             )
             all_results.append(final_result)
+
         except requests.RequestException as e:
-            print("\n" + "=" * 90)
-            print(f"CASE ID          : {case_name}")
-            print(f"CASE GROUP       : {display_group}")
-            print(f"EXPECTED GROUP   : {expected_group}")
-            print(f"EVALUATION MODE  : {evaluation_mode}")
-            print("RESULT           : REQUEST FAILED")
-            print(f"Error            : {e}")
+            print("\n" + "=" * 100)
+            print(f"CASE ID              : {case_name}")
+            print(f"CASE GROUP           : {display_group}")
+            print(f"EXPECTED GROUP       : {expected_group}")
+            print(f"EXPECTED SCREENING   : {to_screening_label(expected_group)}")
+            print(f"EVALUATION MODE      : {evaluation_mode}")
+            print("RESULT               : REQUEST FAILED")
+            print(f"Error                : {e}")
 
             all_results.append({
                 "case_name": case_name,
                 "display_group": display_group,
                 "expected_group": expected_group,
+                "expected_screening_label": to_screening_label(expected_group),
                 "actual_group": None,
+                "actual_screening_label": "Unknown",
                 "passed": False if evaluation_mode == "strict" else True,
                 "status_code": 0,
                 "evaluation_mode": evaluation_mode,
+                "threshold": None,
+                "probability": None,
             })
 
     print_summary(all_results)

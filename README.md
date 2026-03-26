@@ -1,14 +1,103 @@
-# 🧑‍⚕️ AI Diabetes Screening App
+# 🩺 DiaScreen AI  
+### AI-Powered Diabetes Screening Web Application
+
+<img width="963" height="499" alt="image" src="https://github.com/user-attachments/assets/759cfc94-cdee-4a1c-9f7a-ae008cc5d700" />
 
 AI Diabetes Screening App is a Streamlit + FastAPI project for diabetes screening classification using a machine learning model together with a rule-based clinical explanation layer.
 
-The system is designed to:
+🧑‍⚕️ The system is designed to:
 - classify screening results as `Likely Diabetes` or `Unlikely Diabetes`
 - provide `Screen Positive` or `Screen Negative`
 - generate `Clinical Flags`
 - identify `Key Risk Factors`
 - generate `Recommendations`
 - display a clear screening summary in a Streamlit web application
+
+<p align="center">
+  <img alt="Streamlit" src="https://img.shields.io/badge/Frontend-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img alt="Render" src="https://img.shields.io/badge/Deployment-Render-4A90E2?style=for-the-badge">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge&logo=python&logoColor=white">
+  <img alt="ML" src="https://img.shields.io/badge/Machine%20Learning-Classification-6A5ACD?style=for-the-badge">
+</p>
+
+<p align="center">
+  <b>DiaScreen AI</b> is a web-based diabetes screening system that combines a <b>machine learning classification model</b> with a <b>rule-based clinical explanation layer</b> to provide an accessible, interpretable, and user-friendly health screening experience.
+</p>
+
+---
+
+## 📌 Project Overview
+
+DiaScreen AI is designed to support **preliminary diabetes risk screening** through a modern web application workflow.
+
+The system allows users to:
+
+- enter personal and health-related information,
+- send structured data to an AI screening API,
+- receive a prediction result,
+- and view an interpretable summary including:
+  - **screening result**
+  - **key risk factors**
+  - **clinical flags**
+  - **recommendations**
+  - **short interpretation**
+
+> ⚠️ This system is intended for **screening support only** and **must not be used as a medical diagnosis tool**.
+
+---
+
+## ✨ Key Features
+
+### 1) Interactive Web-Based Screening
+Users can input health-related information through a responsive Streamlit interface.
+
+### 2) AI-Based Diabetes Classification
+The backend processes structured health data and performs diabetes screening using a deployed machine learning model.
+
+### 3) Rule-Based Clinical Explanation Layer
+In addition to prediction, the system generates human-readable outputs such as:
+- Key Risk Factors
+- Clinical Flags
+- Recommendations
+- Short Interpretation
+
+### 4) Multi-Page User Flow
+The application is organized into a clear 3-step journey:
+
+- **Step 1:** Health Data Input  
+- **Step 2:** AI Processing  
+- **Step 3:** Risk Analysis Result  
+
+### 5) API Health Monitoring
+The backend provides service monitoring endpoints:
+- `/health`
+- `/model/health`
+- `/predict`
+
+### 6) Session-Based Workflow Management
+The system preserves patient input, API payload, prediction result, and processing state using Streamlit session state.
+
+---
+
+## 🧠 System Architecture
+
+```text
+User
+  ↓
+Streamlit Web App
+  ├── 1_Health_Data_Input.py
+  ├── 2_AI_Processing.py
+  └── 3_AI_Risk_Analysis_Result.py
+  ↓
+FastAPI Backend
+  ├── /health
+  ├── /model/health
+  └── /predict
+  ↓
+ML Model + Input Preprocessing + Rule-Based Explanation
+  ↓
+Prediction Result + Clinical Summary
 
 ---
 
